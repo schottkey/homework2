@@ -20,9 +20,9 @@ public class FileWriter
 
     private static final Logger logger = getLogger(FileWriter.class);
     private final Path resultFilePath;
-    private final Exchanger<Map<String, Pair<String, Integer>>> exchanger;
+    private final Exchanger<Map<String, String>> exchanger;
 
-    public FileWriter(String resultFileName, Exchanger<Map<String, Pair<String, Integer>>> exchanger) {
+    public FileWriter(String resultFileName, Exchanger<Map<String, String>> exchanger) {
         this.resultFilePath = Path.of(resultFileName);
         this.exchanger = exchanger;
     }
@@ -33,14 +33,13 @@ public class FileWriter
         try (OutputStream os = Files.newOutputStream(resultFilePath, StandardOpenOption.CREATE);
              PrintWriter fileWriter = new PrintWriter(os)) {
             while (true) {
-                Map<String, Pair<String, Integer>> map = new HashMap<>();
+                Map<String, String> map = new HashMap<>();
                 try {
                     map = exchanger.exchange(map);
                 } catch (InterruptedException e) {
                     break;
                 }
-                for (Map.Entry<String, Pair<String, Integer>> entry : map.entrySet()) {
-                    String line = entry.getValue().toString("%s %s");
+                for (String line : map.values()) {
                     fileWriter.println(line);
                 }
             }

@@ -23,13 +23,13 @@ public class FileProcessor {
 
         ExecutorService lineProcessingExecutor = Executors.newFixedThreadPool(CHUNK_SIZE);
 
-        Exchanger<Map<String, Pair<String, Integer>>> exchanger = new Exchanger<>();
+        Exchanger<Map<String, String>> exchanger = new Exchanger<>();
         Thread writerThread = new Thread(new FileWriter(resultFileName, exchanger));
         writerThread.start();
 
         try (final Scanner scanner = new Scanner(file, defaultCharset())) {
             while (scanner.hasNext()) {
-                LinkedHashMap<String, Pair<String, Integer>> map = new LinkedHashMap<>();
+                LinkedHashMap<String, String> map = new LinkedHashMap<>();
                 for (int i = 0; i < CHUNK_SIZE; i++) {
                     if (scanner.hasNext()) {
                         map.put(scanner.nextLine(), null);
@@ -41,10 +41,11 @@ public class FileProcessor {
                     }
                 }
 
-                for (String string : map.keySet()) {
+                for (String line : map.keySet()) {
                     lineProcessingExecutor.submit(() -> {
-                        Pair<String, Integer> pair = new LineCounterProcessor().process(string);
-                        map.put(pair.getLeft(), pair);
+                        Pair<String, Integer> pair = new LineCounterProcessor().process(line);
+                        String resultLine = pair.toString("%s %s");
+                        map.put(pair.getLeft(), resultLine);
                         PHASER.arriveAndAwaitAdvance();
                     });
                 }
