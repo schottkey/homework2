@@ -15,44 +15,47 @@ import static org.slf4j.LoggerFactory.getLogger;
 public class FileProcessor {
     private static final Logger logger = getLogger(FileProcessor.class);
     public static final int CHUNK_SIZE = 2 * getRuntime().availableProcessors();
-    private static final Phaser PHASER = new Phaser(CHUNK_SIZE + 1);
 
     public void process(@Nonnull String processingFileName, @Nonnull String resultFileName) {
         checkFileExists(processingFileName);
         final File file = new File(processingFileName);
 
+        final Phaser phaser = new Phaser(CHUNK_SIZE + 1);
         ExecutorService lineProcessingExecutor = Executors.newFixedThreadPool(CHUNK_SIZE);
 
-        Exchanger<Map<String, String>> exchanger = new Exchanger<>();
+        Exchanger<String[]> exchanger = new Exchanger<>();
         Thread writerThread = new Thread(new FileWriter(resultFileName, exchanger));
         writerThread.start();
 
         try (final Scanner scanner = new Scanner(file, defaultCharset())) {
             while (scanner.hasNext()) {
-                LinkedHashMap<String, String> map = new LinkedHashMap<>();
+                final List<String> lines = new ArrayList<>();
                 for (int i = 0; i < CHUNK_SIZE; i++) {
                     if (scanner.hasNext()) {
-                        map.put(scanner.nextLine(), null);
+                        lines.add(scanner.nextLine());
                     } else {
                         for (; i < CHUNK_SIZE; i++) {
-                            PHASER.arriveAndDeregister();
+                            phaser.arriveAndDeregister();
                         }
                         break;
                     }
                 }
 
-                for (String line : map.keySet()) {
+                final String[] resultLines = new String[lines.size()];
+                for (int i = 0; i < lines.size(); i++) {
+                    final int index = i;
+                    final String line = lines.get(i);
+
                     lineProcessingExecutor.submit(() -> {
                         Pair<String, Integer> pair = new LineCounterProcessor().process(line);
-                        String resultLine = pair.toString("%s %s");
-                        map.put(pair.getLeft(), resultLine);
-                        PHASER.arriveAndAwaitAdvance();
+                        resultLines[index] = pair.toString("%s %s");
+                        phaser.arrive();
                     });
                 }
-                PHASER.arriveAndAwaitAdvance();
+                phaser.arriveAndAwaitAdvance();
 
                 try {
-                    exchanger.exchange(map);
+                    exchanger.exchange(resultLines);
                 } catch (InterruptedException e) {
                     throw new RuntimeException(e);
                 }
@@ -71,12 +74,5 @@ public class FileProcessor {
         if (!file.exists() || file.isDirectory()) {
             throw new IllegalArgumentException("File '" + fileName + "' not exists");
         }
-    }
-    
-    public static void main(String[] args) {
-        FileProcessor fileProcessor = new FileProcessor();
-        String in = "D:\\Java\\digital habits\\homework2\\integration-test\\An Imitation of Spenser\\text.txt";
-        String out = "D:\\Java\\digital habits\\homework2\\integration-test\\An Imitation of Spenser\\result1.txt";
-        fileProcessor.process(in, out);
     }
 }

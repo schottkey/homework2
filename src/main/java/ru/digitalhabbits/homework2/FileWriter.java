@@ -1,15 +1,13 @@
 package ru.digitalhabbits.homework2;
 
-import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.Logger;
 
-import java.io.*;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.concurrent.Exchanger;
 
 import static java.lang.Thread.currentThread;
@@ -20,9 +18,9 @@ public class FileWriter
 
     private static final Logger logger = getLogger(FileWriter.class);
     private final Path resultFilePath;
-    private final Exchanger<Map<String, String>> exchanger;
+    private final Exchanger<String[]> exchanger;
 
-    public FileWriter(String resultFileName, Exchanger<Map<String, String>> exchanger) {
+    public FileWriter(String resultFileName, Exchanger<String[]> exchanger) {
         this.resultFilePath = Path.of(resultFileName);
         this.exchanger = exchanger;
     }
@@ -33,13 +31,13 @@ public class FileWriter
         try (OutputStream os = Files.newOutputStream(resultFilePath, StandardOpenOption.CREATE);
              PrintWriter fileWriter = new PrintWriter(os)) {
             while (true) {
-                Map<String, String> map = new HashMap<>();
+                String[] lines;
                 try {
-                    map = exchanger.exchange(map);
+                    lines = exchanger.exchange(new String[0]);
                 } catch (InterruptedException e) {
                     break;
                 }
-                for (String line : map.values()) {
+                for (String line : lines) {
                     fileWriter.println(line);
                 }
             }
